@@ -31,7 +31,7 @@ add = function(a, b) {
 
 - Signed Integers: i8, i16, i32, i64, i128
 - Unsigned Integers: u8, u16, u32, u64, u128
-- Floating-point: f8, f16, f32, f64, f128
+- Floating-point: f16, f32, f64, f128
 - Characters:
   - char: Multi-byte/Unicode support (e.g., Japanese text).
   - short_char: Single-byte / UTF-8 optimized character.
