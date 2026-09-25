@@ -1,4 +1,7 @@
-#[derive(Debug, PartialEq)]
+use logos::Logos;
+
+#[derive(Logos, Debug, PartialEq)]
+#[logos(skip r"[ \t\n\f]+")]
 pub enum Token {
     Identifier(String),
     Literal(String),
