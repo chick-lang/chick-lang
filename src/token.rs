@@ -2,68 +2,124 @@ use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
+#[logos(skip(r"//[^\n]*", allow_greedy = true))]
+#[logos(skip r"/\*([^*]|\*+[^/*])*\*+/")]
 pub enum Token {
+    #[regex("[A-Za-z_]\\w*", |lex| lex.slice().to_string())]
     Identifier(String),
+    #[regex("[+-]?(?:\\d+\\.?\\d*|\\.\\d+)", |lex| lex.slice().to_string())]
     Literal(String),
+    #[regex("\\\"([^\\\"\\r\\n]|\\.)*\\\"", |lex| lex.slice().to_string())]
     String(String),
 
+    #[token("..")]
     DotDot,
 
+    #[token("break")]
     Break,
+    #[token("continue")]
     Continue,
+    #[token("else")]
     Else,
+    #[token("for")]
     For,
+    #[token("function")]
     Function,
+    #[token("if")]
     If,
+    #[token("in")]
     In,
+    #[token("let")]
     Let,
+    #[token("return")]
     Return,
+    #[token("while")]
     While,
 
+    #[token("{")]
     StartBrace,
+    #[token("}")]
     FinishBrace,
+    #[token("[")]
     StartBracket,
+    #[token("]")]
     FinishBracket,
+    #[token(":")]
     Colon,
+    #[token(",")]
     Comma,
+    #[token(".")]
     Dot,
+    #[token("(")]
     StartParenthese,
+    #[token(")")]
     FinishParenthese,
+    #[token(";")]
     Semicolon,
 
+    #[token("!")]
     Not,
+    #[token("&&")]
     AmpAmp,
+    #[token("||")]
     VertVert,
+    #[token("^")]
     Caret,
 
+    #[token("+")]
     Plus,
+    #[token("-")]
     Minus,
+    #[token("*")]
     Star,
+    #[token("/")]
     Slash,
+    #[token("%")]
     Percent,
+    #[token("**")]
     StarStar,
+    #[token("&")]
     Amp,
+    #[token("|")]
     Vert,
 
+    #[token("=")]
     Equal,
+    #[token("&&=")]
     AmpAmpEqual,
+    #[token("||=")]
     VertVertEqual,
+    #[token("^=")]
     CaretEqual,
+    #[token("+=")]
     PlusEqual,
+    #[token("-=")]
     MinusEqual,
+    #[token("*=")]
     StarEqual,
+    #[token("/=")]
     SlashEqual,
+    #[token("%=")]
     PercentEqual,
+    #[token("**=")]
     StarStarEqual,
 
+    #[token("++")]
     PlusPlus,
+    #[token("--")]
     MinusMinus,
 
+    #[token("==")]
     EqualEqual,
+    #[token("!=")]
     NotEqual,
+    #[token(">")]
     Greater,
+    #[token("<")]
     Less,
+    #[token(">=")]
     GreaterEqual,
+    #[token("<=")]
     LessEqual,
 }
 
