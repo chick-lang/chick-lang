@@ -5,9 +5,9 @@ use logos::Logos;
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]
 #[logos(skip r"/\*([^*]|\*+[^/*])*\*+/")]
 pub enum Token {
-    #[regex("[A-Za-z_]\\w*", |lex| lex.slice().to_string())]
+    #[regex(r"[A-Za-z_]\w*", |lex| lex.slice().to_string())]
     Identifier(String),
-    #[regex("[+-]?(?:\\d+\\.?\\d*|\\.\\d+)", |lex| lex.slice().to_string())]
+    #[regex(r"[+-]?(?:\d+\.?\d*|\.\d+)", |lex| lex.slice().to_string())]
     Literal(String),
     #[regex("\\\"([^\\\"\\r\\n]|\\.)*\\\"", |lex| lex.slice().to_string())]
     String(String),
