@@ -17,6 +17,8 @@ pub enum Token {
 
     #[token("break")]
     Break,
+    #[token("class")]
+    Class,
     #[token("continue")]
     Continue,
     #[token("else")]
@@ -145,10 +147,11 @@ mod tests {
 
     #[test]
     fn test_keywords() {
-        let code = "break continue else for function if in let return while";
+        let code = "break class continue else for function if in let return while";
         let mut lex = Token::lexer(code);
 
         assert_eq!(lex.next(), Some(Ok(Token::Break)));
+        assert_eq!(lex.next(), Some(Ok(Token::Class)));
         assert_eq!(lex.next(), Some(Ok(Token::Continue)));
         assert_eq!(lex.next(), Some(Ok(Token::Else)));
         assert_eq!(lex.next(), Some(Ok(Token::For)));
