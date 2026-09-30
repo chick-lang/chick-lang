@@ -1,6 +1,6 @@
 use logos::Logos;
 
-#[derive(Logos, Debug, PartialEq)]
+#[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]
 #[logos(skip r"/\*([^*]|\*+[^/*])*\*+/")]
@@ -23,6 +23,8 @@ pub enum Token {
     Continue,
     #[token("else")]
     Else,
+    #[token("false")]
+    False,
     #[token("for")]
     For,
     #[token("function")]
@@ -35,6 +37,8 @@ pub enum Token {
     Let,
     #[token("return")]
     Return,
+    #[token("true")]
+    True,
     #[token("while")]
     While,
 
