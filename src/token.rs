@@ -1,4 +1,12 @@
-use logos::Logos;
+use logos::{Lexer, Logos};
+
+fn callback_for_char(lex: &mut Lexer<Token>) -> char {
+    if let Some(result) = lex.slice().chars().next() {
+        result
+    } else {
+        panic!("A `char` must consist of a single character.");
+    }
+}
 
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
@@ -9,6 +17,8 @@ pub enum Token {
     Identifier(String),
     #[regex(r"[+-]?(?:\d+\.?\d*|\.\d+)", |lex| lex.slice().to_string())]
     Literal(String),
+    #[regex("'([^'\\\r\n]|\\.)'", callback_for_char)]
+    Char(char),
     #[regex("\\\"([^\\\"\\r\\n]|\\.)*\\\"", |lex| lex.slice().to_string())]
     String(String),
 
