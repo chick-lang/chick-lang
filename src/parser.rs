@@ -5,6 +5,105 @@ use chumsky::{
     prelude::*,
 };
 
+fn parser<'a, I>() -> impl Parser<'a, I, Program, extra::Err<Rich<'a, Token>>> + Clone
+where
+    I: ValueInput<'a, Token = Token, Span = SimpleSpan>,
+{
+    recursive(|stmt| {
+        let ident = select! {
+            Token::Identifier(name) => name,
+        };
+        let elseif_parser = just(Token::Else)
+            .then(just(Token::If))
+            .ignore_then(expr_parser())
+            .then(
+                stmt.clone()
+                    .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
+            )
+            .repeated()
+            .collect::<Vec<_>>();
+        let else_parser = just(Token::Else)
+            .ignore_then(
+                stmt.clone()
+                    .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
+            )
+            .or_not();
+        choice((
+            just(Token::Break)
+                .then(just(Token::Semicolon))
+                .to(Stmt::Break),
+            just(Token::Continue)
+                .then(just(Token::Semicolon))
+                .to(Stmt::Continue),
+            expr_parser()
+                .then(just(Token::Semicolon))
+                .map(|(expr, _)| Stmt::Expr(expr)),
+            just(Token::For)
+                .ignore_then(ident)
+                .then_ignore(just(Token::In))
+                .then(expr_parser())
+                .then(
+                    stmt.clone()
+                        .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
+                )
+                .map(|((var, iter), body)| Stmt::For {
+                    var,
+                    iter,
+                    body: Box::new(body),
+                }),
+            just(Token::If)
+                .ignore_then(expr_parser())
+                .then(
+                    stmt.clone()
+                        .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
+                )
+                .then(elseif_parser)
+                .then(else_parser)
+                .map(|(((cond, body), elseif_list), else_block)| {
+                    let initial_else = else_block.map(Box::new);
+                    let else_branch = elseif_list.into_iter().rfold(
+                        initial_else,
+                        |acc_else, (elem_cond, elem_body)| {
+                            Some(Box::new(vec![Stmt::If {
+                                cond: elem_cond,
+                                body: Box::new(elem_body),
+                                else_branch: acc_else,
+                            }]))
+                        },
+                    );
+                    Stmt::If {
+                        cond,
+                        body: Box::new(body),
+                        else_branch,
+                    }
+                }),
+            just(Token::Let)
+                .ignore_then(ident)
+                .then(just(Token::Colon).ignore_then(ident).or_not())
+                .then(expr_parser().delimited_by(just(Token::Equal), just(Token::Semicolon)))
+                .map(|(variable, initiator)| Stmt::Let {
+                    variable,
+                    initiator,
+                }),
+            just(Token::Return)
+                .ignore_then(expr_parser())
+                .map(|value| Stmt::Return(value)),
+            just(Token::While)
+                .ignore_then(expr_parser())
+                .then(
+                    stmt.clone()
+                        .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
+                )
+                .map(|(cond, body)| Stmt::While {
+                    cond,
+                    body: Box::new(body),
+                }),
+        ))
+        .repeated()
+        .collect()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
