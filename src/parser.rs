@@ -135,9 +135,9 @@ mod tests {
             Token::For,
             Token::Identifier("i".into()),
             Token::In,
-            Token::Literal(1.to_string()),
+            Token::Int(1.to_string()),
             Token::DotDot,
-            Token::Literal(11.to_string()),
+            Token::Int(11.to_string()),
             Token::StartBrace,
             Token::Identifier("print".into()),
             Token::StartParenthese,
@@ -168,7 +168,7 @@ mod tests {
             Token::If,
             Token::Identifier("n".into()),
             Token::Less,
-            Token::Literal(10.to_string()),
+            Token::Int(10.to_string()),
             Token::StartBrace,
             Token::Identifier("print".into()),
             Token::StartParenthese,
@@ -238,7 +238,7 @@ mod tests {
             Token::Colon,
             Token::Identifier("f64".into()),
             Token::Equal,
-            Token::Literal(1.414.to_string()),
+            Token::Float(1.414.to_string()),
             Token::Semicolon,
         ]);
         assert_eq!(
@@ -256,9 +256,9 @@ mod tests {
             Token::Let,
             Token::Identifier("y".into()),
             Token::Equal,
-            Token::Literal(22.to_string()),
+            Token::Int(22.to_string()),
             Token::Slash,
-            Token::Literal(7.to_string()),
+            Token::Int(7.to_string()),
             Token::Semicolon,
         ]);
         assert_eq!(
@@ -310,12 +310,12 @@ mod tests {
     #[test]
     fn literal_expr_test() {
         assert_eq!(
-            parse_expr_tokens(vec![Token::Literal("42".into())]),
-            Ok(Expr::Int("42".into()))
+            parse_expr_tokens(vec![Token::Int(42.to_string())]),
+            Ok(Expr::Int(42.to_string()))
         );
         assert_eq!(
-            parse_expr_tokens(vec![Token::Literal("3.14".into())]),
-            Ok(Expr::Float("3.14".into()))
+            parse_expr_tokens(vec![Token::Float(3.14.to_string())]),
+            Ok(Expr::Float(3.14.to_string()))
         );
         assert_eq!(
             parse_expr_tokens(vec![Token::String("\"hello\"".into())]),
@@ -347,17 +347,17 @@ mod tests {
 
         for (token, expected_op) in ops {
             let result = parse_expr_tokens(vec![
-                Token::Literal("1".into()),
+                Token::Int(1.to_string()),
                 token,
-                Token::Literal("2".into()),
+                Token::Int(2.to_string()),
             ]);
 
             assert_eq!(
                 result,
                 Ok(Expr::BinaryOp {
-                    left: Box::new(Expr::Int("1".into())),
+                    left: Box::new(Expr::Int(1.to_string())),
                     op: expected_op,
-                    right: Box::new(Expr::Int("2".into())),
+                    right: Box::new(Expr::Int(2.to_string())),
                 })
             );
         }
@@ -411,7 +411,7 @@ mod tests {
             let result = parse_expr_tokens(vec![
                 Token::Identifier("x".into()),
                 token,
-                Token::Literal("10".into()),
+                Token::Int(10.to_string()),
             ]);
 
             assert_eq!(
@@ -419,7 +419,7 @@ mod tests {
                 Ok(Expr::BinaryOp {
                     left: Box::new(Expr::Variable("x".into())),
                     op: expected_op,
-                    right: Box::new(Expr::Int("10".into())),
+                    right: Box::new(Expr::Int(10.to_string())),
                 })
             );
         }
@@ -432,7 +432,7 @@ mod tests {
             Token::StartParenthese,
             Token::Identifier("a".into()),
             Token::Comma,
-            Token::Literal("10".into()),
+            Token::Int(10.to_string()),
             Token::FinishParenthese,
         ]);
 
@@ -440,7 +440,7 @@ mod tests {
             result,
             Ok(Expr::Call {
                 calee: "add".into(),
-                args: vec![Expr::Variable("a".into()), Expr::Int("10".into()),],
+                args: vec![Expr::Variable("a".into()), Expr::Int(10.to_string()),],
             })
         );
     }
@@ -562,16 +562,16 @@ mod tests {
     fn range_expr_test() {
         // Test: 0..10
         let result = parse_expr_tokens(vec![
-            Token::Literal("0".into()),
+            Token::Int(0.to_string()),
             Token::DotDot,
-            Token::Literal("10".into()),
+            Token::Int(10.to_string()),
         ]);
 
         assert_eq!(
             result,
             Ok(Expr::Range(
-                Box::new(Expr::Int("0".into())),
-                Box::new(Expr::Int("10".into()))
+                Box::new(Expr::Int(0.to_string())),
+                Box::new(Expr::Int(10.to_string()))
             ))
         );
     }
