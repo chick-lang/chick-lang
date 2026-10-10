@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::token::Token;
 use chumsky::{
     input::{Stream, ValueInput},
+    pratt::*,
     prelude::*,
 };
 
@@ -28,7 +29,91 @@ where
                     .delimited_by(just(Token::StartBrace), just(Token::FinishBrace)),
             )
             .or_not();
+        let assignments = choice((
+            ident
+                .then_ignore(just(Token::Equal))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: None,
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::AmpAmpEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::LogAnd),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::VertVertEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::LogOr),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::CaretEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Xor),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::PlusEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Plus),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::MinusEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Minus),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::StarEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Mult),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::SlashEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Div),
+                    value: right,
+                }),
+            ident
+                .then_ignore(just(Token::StarStarEqual))
+                .then(expr_parser())
+                .then_ignore(just(Token::Semicolon))
+                .map(|(left, right)| Stmt::Assign {
+                    target: left,
+                    op: Some(BinaryOpKind::Power),
+                    value: right,
+                }),
+        ));
         choice((
+            assignments,
             just(Token::Break)
                 .then(just(Token::Semicolon))
                 .to(Stmt::Break),
@@ -104,6 +189,215 @@ where
     })
 }
 
+fn expr_parser<'a, I>() -> impl Parser<'a, I, Expr, extra::Err<Rich<'a, Token>>> + Clone
+where
+    I: ValueInput<'a, Token = Token, Span = SimpleSpan>,
+{
+    recursive(|expr| {
+        let ident = select! {
+            Token::Identifier(name) => name,
+        };
+        let atom_parser = expr.clone();
+        let operators = atom_parser.pratt((
+            infix(
+                chumsky::pratt::left(1),
+                just(Token::VertVert),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::LogOr,
+                    right: Box::new(r),
+                },
+            ),
+            infix(
+                chumsky::pratt::left(2),
+                just(Token::AmpAmp),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::LogAnd,
+                    right: Box::new(r),
+                },
+            ),
+            prefix(3, just(Token::Not), |_, t, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::Not,
+            }),
+            infix(
+                chumsky::pratt::left(4),
+                just(Token::EqualEqual),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Equal,
+                    right: Box::new(r),
+                },
+            ),
+            infix(
+                chumsky::pratt::left(4),
+                just(Token::NotEqual),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::NotEqual,
+                    right: Box::new(r),
+                },
+            ),
+            infix(chumsky::pratt::left(4), just(Token::Less), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Less,
+                    right: Box::new(r),
+                }
+            }),
+            infix(
+                chumsky::pratt::left(4),
+                just(Token::GreaterEqual),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::GreaterEqual,
+                    right: Box::new(r),
+                },
+            ),
+            infix(
+                chumsky::pratt::left(4),
+                just(Token::LessEqual),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::LessEqual,
+                    right: Box::new(r),
+                },
+            ),
+            infix(chumsky::pratt::left(5), just(Token::Vert), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::BitOr,
+                    right: Box::new(r),
+                }
+            }),
+            infix(chumsky::pratt::left(7), just(Token::Amp), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::BitAnd,
+                    right: Box::new(r),
+                }
+            }),
+            infix(chumsky::pratt::left(8), just(Token::Caret), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Xor,
+                    right: Box::new(r),
+                }
+            }),
+            infix(chumsky::pratt::left(9), just(Token::Plus), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Plus,
+                    right: Box::new(r),
+                }
+            }),
+            infix(chumsky::pratt::left(9), just(Token::Minus), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Minus,
+                    right: Box::new(r),
+                }
+            }),
+            infix(chumsky::pratt::left(10), just(Token::Star), |l, _, r, _| {
+                Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Mult,
+                    right: Box::new(r),
+                }
+            }),
+            infix(
+                chumsky::pratt::left(10),
+                just(Token::Slash),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Div,
+                    right: Box::new(r),
+                },
+            ),
+            infix(
+                chumsky::pratt::left(10),
+                just(Token::Percent),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Mod,
+                    right: Box::new(r),
+                },
+            ),
+            infix(
+                chumsky::pratt::left(11),
+                just(Token::StarStar),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Power,
+                    right: Box::new(r),
+                },
+            ),
+            prefix(12, just(Token::Plus), |_, t, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::Plus,
+            }),
+            prefix(12, just(Token::Minus), |_, t, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::Minus,
+            }),
+            prefix(12, just(Token::PlusPlus), |_, t, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::PreIncrement,
+            }),
+            prefix(12, just(Token::MinusMinus), |_, t, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::PreDecrement,
+            }),
+            postfix(13, just(Token::PlusPlus), |t, _, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::AfterDecrement,
+            }),
+            postfix(13, just(Token::MinusMinus), |t, _, _| Expr::UnaryOp {
+                target: Box::new(t),
+                op: UnaryOpKind::AfterDecrement,
+            }),
+        ));
+        choice((
+            expr.clone()
+                .delimited_by(just(Token::StartParenthese), just(Token::FinishParenthese)),
+            operators,
+            ident
+                .then(
+                    expr.clone()
+                        .separated_by(just(Token::Comma))
+                        .allow_trailing()
+                        .collect::<Vec<_>>()
+                        .delimited_by(just(Token::StartParenthese), just(Token::FinishParenthese)),
+                )
+                .map(|(calee, args)| Expr::Call { calee, args }),
+            select! { Token::Char(c) => Expr::Char(c) },
+            just(Token::False).to(Expr::False),
+            select! { Token::Float(f) => Expr::Float(f) },
+            just(Token::Function)
+                .ignore_then(ident.or_not())
+                .then(
+                    ident
+                        .then(just(Token::Colon).ignore_then(ident).or_not())
+                        .separated_by(just(Token::Comma))
+                        .allow_trailing()
+                        .collect::<Vec<_>>()
+                        .delimited_by(just(Token::StartParenthese), just(Token::FinishParenthese)),
+                )
+                .then(parser().delimited_by(just(Token::StartBrace), just(Token::FinishBrace)))
+                .map(|((name, args), body)| Expr::Function { name, args, body }),
+            select! { Token::Int(i) => Expr::Int(i) },
+            expr.clone()
+                .then(just(Token::DotDot))
+                .then(expr.clone())
+                .map(|((start, _), finish)| Expr::Range(Box::new(start), Box::new(finish))),
+            select! { Token::String(s) => Expr::String(s) },
+            just(Token::True).to(Expr::True),
+            ident.map(|name| Expr::Variable(name)),
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,7 +413,41 @@ mod tests {
     }
 
     #[test]
-    fn one_word_test() {
+    fn assignment_stmt_test() {
+        let ops = vec![
+            (Token::Equal, None),
+            (Token::AmpAmpEqual, Some(BinaryOpKind::LogAnd)),
+            (Token::VertVertEqual, Some(BinaryOpKind::LogOr)),
+            (Token::CaretEqual, Some(BinaryOpKind::Xor)),
+            (Token::PlusEqual, Some(BinaryOpKind::Plus)),
+            (Token::MinusEqual, Some(BinaryOpKind::Minus)),
+            (Token::StarEqual, Some(BinaryOpKind::Mult)),
+            (Token::SlashEqual, Some(BinaryOpKind::Div)),
+            (Token::PercentEqual, Some(BinaryOpKind::Mod)),
+            (Token::StarStarEqual, Some(BinaryOpKind::Power)),
+        ];
+
+        for (token, expected_op) in ops {
+            let result = parse_stmt_tokens(vec![
+                Token::Identifier("x".into()),
+                token,
+                Token::Int(10.to_string()),
+                Token::Semicolon,
+            ]);
+
+            assert_eq!(
+                result,
+                Ok(vec![Stmt::Assign {
+                    target: "x".into(),
+                    op: expected_op,
+                    value: Expr::Int(10.to_string()),
+                }])
+            );
+        }
+    }
+
+    #[test]
+    fn one_word_stmt_test() {
         let result = parse_stmt_tokens(vec![
             Token::Break,
             Token::Semicolon,
@@ -390,39 +718,6 @@ mod tests {
                     left: Box::new(Expr::Variable("a".into())),
                     op: expected_op,
                     right: Box::new(Expr::Variable("b".into())),
-                })
-            );
-        }
-    }
-
-    #[test]
-    fn binary_assignment_operators_test() {
-        let ops = vec![
-            (Token::Equal, BinaryOpKind::Assign),
-            (Token::AmpAmpEqual, BinaryOpKind::AndAssign),
-            (Token::VertVertEqual, BinaryOpKind::OrAssign),
-            (Token::CaretEqual, BinaryOpKind::XorAssign),
-            (Token::PlusEqual, BinaryOpKind::PlusAssign),
-            (Token::MinusEqual, BinaryOpKind::MinusAssign),
-            (Token::StarEqual, BinaryOpKind::MultAssign),
-            (Token::SlashEqual, BinaryOpKind::DivAssign),
-            (Token::PercentEqual, BinaryOpKind::ModAssign),
-            (Token::StarStarEqual, BinaryOpKind::PowerAssign),
-        ];
-
-        for (token, expected_op) in ops {
-            let result = parse_expr_tokens(vec![
-                Token::Identifier("x".into()),
-                token,
-                Token::Int(10.to_string()),
-            ]);
-
-            assert_eq!(
-                result,
-                Ok(Expr::BinaryOp {
-                    left: Box::new(Expr::Variable("x".into())),
-                    op: expected_op,
-                    right: Box::new(Expr::Int(10.to_string())),
                 })
             );
         }
