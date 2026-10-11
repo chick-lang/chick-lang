@@ -51,12 +51,12 @@ pub enum Stmt {
     For {
         var: Identifier,
         iter: Expr,
-        body: Box<Program>,
+        body: Program,
     },
     If {
         cond: Expr,
-        body: Box<Program>,
-        else_branch: Option<Box<Program>>,
+        body: Program,
+        else_branch: Option<Program>,
     },
     Let {
         variable: IdentifierTyped,
@@ -65,7 +65,7 @@ pub enum Stmt {
     Return(Expr),
     While {
         cond: Expr,
-        body: Box<Program>,
+        body: Program,
     },
 }
 

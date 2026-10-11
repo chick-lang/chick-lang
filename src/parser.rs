@@ -146,31 +146,26 @@ where
             .then_ignore(just(Token::In))
             .then(expr.clone())
             .then(block.clone())
-            .map(|((var, iter), body)| Stmt::For {
-                var,
-                iter,
-                body: Box::new(body),
-            }),
+            .map(|((var, iter), body)| Stmt::For { var, iter, body }),
         just(Token::If)
             .ignore_then(expr.clone())
             .then(block.clone())
             .then(elseif_parser)
             .then(else_parser)
             .map(|(((cond, body), elseif_list), else_block)| {
-                let initial_else = else_block.map(Box::new);
                 let else_branch = elseif_list.into_iter().rfold(
-                    initial_else,
+                    else_block,
                     |acc_else, (elem_cond, elem_body)| {
-                        Some(Box::new(vec![Stmt::If {
+                        Some(vec![Stmt::If {
                             cond: elem_cond,
-                            body: Box::new(elem_body),
+                            body: elem_body,
                             else_branch: acc_else,
-                        }]))
+                        }])
                     },
                 );
                 Stmt::If {
                     cond,
-                    body: Box::new(body),
+                    body,
                     else_branch,
                 }
             }),
@@ -192,10 +187,7 @@ where
         just(Token::While)
             .ignore_then(expr.clone())
             .then(block.clone())
-            .map(|(cond, body)| Stmt::While {
-                cond,
-                body: Box::new(body),
-            }),
+            .map(|(cond, body)| Stmt::While { cond, body }),
     )));
 
     expr.define(expr_parser(expr.clone(), stmt.clone()));
@@ -520,10 +512,10 @@ mod tests {
                     op: BinaryOpKind::Range,
                     right: Box::new(Expr::Int(11.to_string())),
                 },
-                body: Box::new(vec![Stmt::Expr(Expr::Call {
+                body: vec![Stmt::Expr(Expr::Call {
                     calee: "print".into(),
                     args: vec![Expr::Variable("i".into())],
-                })]),
+                })],
             }])
         );
     }
@@ -551,10 +543,10 @@ mod tests {
                     op: BinaryOpKind::Less,
                     right: Box::new(Expr::Int(10.to_string())),
                 },
-                body: Box::new(vec![Stmt::Expr(Expr::Call {
+                body: vec![Stmt::Expr(Expr::Call {
                     calee: "print".into(),
                     args: vec![Expr::Variable("i".into())],
-                })]),
+                })],
                 else_branch: None,
             }])
         );
@@ -585,16 +577,16 @@ mod tests {
             result,
             Ok(vec![Stmt::If {
                 cond: Expr::False,
-                body: Box::new(vec![]),
-                else_branch: Some(Box::new(vec![Stmt::If {
+                body: vec![],
+                else_branch: Some(vec![Stmt::If {
                     cond: Expr::True,
-                    body: Box::new(vec![]),
-                    else_branch: Some(Box::new(vec![Stmt::If {
+                    body: vec![],
+                    else_branch: Some(vec![Stmt::If {
                         cond: Expr::False,
-                        body: Box::new(vec![]),
-                        else_branch: Some(Box::new(vec![])),
-                    }])),
-                }])),
+                        body: vec![],
+                        else_branch: Some(vec![]),
+                    }]),
+                }]),
             }])
         );
     }
@@ -660,10 +652,10 @@ mod tests {
             result,
             Ok(vec![Stmt::While {
                 cond: Expr::True,
-                body: Box::new(vec![Stmt::Expr(Expr::Call {
+                body: vec![Stmt::Expr(Expr::Call {
                     calee: "print".into(),
                     args: vec![Expr::String("\"Hello, World!\"".into())],
-                })]),
+                })],
             }])
         );
     }
