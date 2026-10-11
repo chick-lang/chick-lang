@@ -285,6 +285,15 @@ where
                     right: Box::new(r),
                 }
             }),
+            infix(
+                chumsky::pratt::left(8),
+                just(Token::DotDot),
+                |l, _, r, _| Expr::BinaryOp {
+                    left: Box::new(l),
+                    op: BinaryOpKind::Range,
+                    right: Box::new(r),
+                },
+            ),
             infix(chumsky::pratt::left(9), just(Token::Plus), |l, _, r, _| {
                 Expr::BinaryOp {
                     left: Box::new(l),
@@ -387,10 +396,6 @@ where
                 .then(parser().delimited_by(just(Token::StartBrace), just(Token::FinishBrace)))
                 .map(|((name, args), body)| Expr::Function { name, args, body }),
             select! { Token::Int(i) => Expr::Int(i) },
-            expr.clone()
-                .then(just(Token::DotDot))
-                .then(expr.clone())
-                .map(|((start, _), finish)| Expr::Range(Box::new(start), Box::new(finish))),
             select! { Token::String(s) => Expr::String(s) },
             just(Token::True).to(Expr::True),
             ident.map(|name| Expr::Variable(name)),
@@ -478,10 +483,11 @@ mod tests {
             result,
             Ok(vec![Stmt::For {
                 var: "i".into(),
-                iter: Expr::Range(
-                    Box::new(Expr::Int(1.to_string())),
-                    Box::new(Expr::Int(11.to_string()))
-                ),
+                iter: Expr::BinaryOp {
+                    left: Box::new(Expr::Int(1.to_string())),
+                    op: BinaryOpKind::Range,
+                    right: Box::new(Expr::Int(11.to_string())),
+                },
                 body: Box::new(vec![Stmt::Expr(Expr::Call {
                     calee: "print".into(),
                     args: vec![Expr::Variable("i".into())],
@@ -724,6 +730,24 @@ mod tests {
     }
 
     #[test]
+    fn binary_range_operators_test() {
+        let result = parse_expr_tokens(vec![
+            Token::Int(0.to_string()),
+            Token::DotDot,
+            Token::Int(10.to_string()),
+        ]);
+
+        assert_eq!(
+            result,
+            Ok(Expr::BinaryOp {
+                left: Box::new(Expr::Int(0.to_string())),
+                op: BinaryOpKind::Range,
+                right: Box::new(Expr::Int(10.to_string()))
+            })
+        );
+    }
+
+    #[test]
     fn call_expr_test() {
         let result = parse_expr_tokens(vec![
             Token::Identifier("add".into()),
@@ -861,24 +885,6 @@ mod tests {
                 op: UnaryOpKind::AfterDecrement,
                 target: Box::new(Expr::Variable("a".into())),
             })
-        );
-    }
-
-    #[test]
-    fn range_expr_test() {
-        // Test: 0..10
-        let result = parse_expr_tokens(vec![
-            Token::Int(0.to_string()),
-            Token::DotDot,
-            Token::Int(10.to_string()),
-        ]);
-
-        assert_eq!(
-            result,
-            Ok(Expr::Range(
-                Box::new(Expr::Int(0.to_string())),
-                Box::new(Expr::Int(10.to_string()))
-            ))
         );
     }
 }

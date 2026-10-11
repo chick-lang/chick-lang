@@ -23,6 +23,8 @@ pub enum BinaryOpKind {
     Less,
     GreaterEqual,
     LessEqual,
+
+    Range,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,7 +89,6 @@ pub enum Expr {
         body: Program,
     },
     Int(String),
-    Range(Box<Expr>, Box<Expr>),
     String(String),
     True,
     UnaryOp {
