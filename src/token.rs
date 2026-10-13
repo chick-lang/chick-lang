@@ -1,14 +1,26 @@
-use logos::Logos;
+use logos::{Lexer, Logos};
 
-#[derive(Logos, Debug, PartialEq)]
+fn callback_for_char(lex: &mut Lexer<Token>) -> char {
+    if let Some(result) = lex.slice().chars().next() {
+        result
+    } else {
+        panic!("A `char` must consist of a single character.");
+    }
+}
+
+#[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]
 #[logos(skip r"/\*([^*]|\*+[^/*])*\*+/")]
 pub enum Token {
+    #[regex(r"[+-]?(?:\d+\.\d+|\.\d+)", |lex| lex.slice().to_string())]
+    Float(String),
     #[regex(r"[A-Za-z_]\w*", |lex| lex.slice().to_string())]
     Identifier(String),
-    #[regex(r"[+-]?(?:\d+\.?\d*|\.\d+)", |lex| lex.slice().to_string())]
-    Literal(String),
+    #[regex(r"[+-]?\d+", |lex| lex.slice().to_string())]
+    Int(String),
+    #[regex("'([^'\\\r\n]|\\.)'", callback_for_char)]
+    Char(char),
     #[regex("\\\"([^\\\"\\r\\n]|\\.)*\\\"", |lex| lex.slice().to_string())]
     String(String),
 
@@ -23,6 +35,8 @@ pub enum Token {
     Continue,
     #[token("else")]
     Else,
+    #[token("false")]
+    False,
     #[token("for")]
     For,
     #[token("function")]
@@ -35,6 +49,8 @@ pub enum Token {
     Let,
     #[token("return")]
     Return,
+    #[token("true")]
+    True,
     #[token("while")]
     While,
 
@@ -135,8 +151,8 @@ mod tests {
 
         assert_eq!(lex.next(), Some(Ok(Token::Identifier("x".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::Identifier("_var123".into()))));
-        assert_eq!(lex.next(), Some(Ok(Token::Literal("123".into()))));
-        assert_eq!(lex.next(), Some(Ok(Token::Literal("45.67".into()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Int("123".into()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Float("45.67".into()))));
         assert_eq!(
             lex.next(),
             Some(Ok(Token::String("\"hello world\"".into())))
@@ -237,21 +253,21 @@ mod tests {
         assert_eq!(lex.next(), Some(Ok(Token::Let)));
         assert_eq!(lex.next(), Some(Ok(Token::Identifier("x".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::Equal)));
-        assert_eq!(lex.next(), Some(Ok(Token::Literal("10".into()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Int("10".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::Semicolon)));
 
         assert_eq!(lex.next(), Some(Ok(Token::If)));
         assert_eq!(lex.next(), Some(Ok(Token::StartParenthese)));
         assert_eq!(lex.next(), Some(Ok(Token::Identifier("x".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::GreaterEqual)));
-        assert_eq!(lex.next(), Some(Ok(Token::Literal("5".into()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Int("5".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::FinishParenthese)));
 
         assert_eq!(lex.next(), Some(Ok(Token::StartBrace)));
         assert_eq!(lex.next(), Some(Ok(Token::Return)));
         assert_eq!(lex.next(), Some(Ok(Token::Identifier("x".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::Plus)));
-        assert_eq!(lex.next(), Some(Ok(Token::Literal("1".into()))));
+        assert_eq!(lex.next(), Some(Ok(Token::Int("1".into()))));
         assert_eq!(lex.next(), Some(Ok(Token::Semicolon)));
         assert_eq!(lex.next(), Some(Ok(Token::FinishBrace)));
 
