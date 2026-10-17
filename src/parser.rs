@@ -172,10 +172,8 @@ where
         just(Token::Let)
             .ignore_then(ident)
             .then(just(Token::Colon).ignore_then(ident).or_not())
-            .then(
-                expr.clone()
-                    .delimited_by(just(Token::Equal), just(Token::Semicolon)),
-            )
+            .then(just(Token::Equal).ignore_then(expr.clone()).or_not())
+            .then_ignore(just(Token::Semicolon))
             .map(|(variable, initiator)| Stmt::Let {
                 variable,
                 initiator,
@@ -606,11 +604,26 @@ mod tests {
             result,
             Ok(vec![Stmt::Let {
                 variable: ("x".into(), Some("f64".into())),
-                initiator: Expr::Float(1.414.to_string()),
+                initiator: Some(Expr::Float(1.414.to_string())),
             }])
         );
     }
 
+    #[test]
+    fn let_without_an_initiator_test() {
+        let result = parse_stmt_tokens(vec![
+            Token::Let,
+            Token::Identifier("x".into()),
+            Token::Semicolon,
+        ]);
+        assert_eq!(
+            result,
+            Ok(vec![Stmt::Let {
+                variable: ("x".into(), None),
+                initiator: None,
+            }])
+        );
+    }
     #[test]
     fn let_calc_test() {
         let result = parse_stmt_tokens(vec![
@@ -626,11 +639,11 @@ mod tests {
             result,
             Ok(vec![Stmt::Let {
                 variable: ("y".into(), None),
-                initiator: Expr::BinaryOp {
+                initiator: Some(Expr::BinaryOp {
                     left: Box::new(Expr::Int(22.to_string())),
                     op: BinaryOpKind::Div,
                     right: Box::new(Expr::Int(7.to_string())),
-                },
+                }),
             }])
         );
     }

@@ -60,7 +60,7 @@ pub enum Stmt {
     },
     Let {
         variable: IdentifierTyped,
-        initiator: Expr,
+        initiator: Option<Expr>,
     },
     Return(Expr),
     While {
