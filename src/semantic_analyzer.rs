@@ -1,6 +1,7 @@
 use crate::ast::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     //符号付き整数
@@ -143,30 +144,30 @@ impl TypeTable {
     }
 }
 
-pub fn Program_Analyzer(Program_val: Program) {
-    let mut Type_Manager = TypeTable::new();
-    let mut Variables: HashMap<String, usize> = HashMap::new();
-    for line in Program_val {
-        Stmt_Amalyzer(line, &mut Type_Manager, &mut Variables, 0);
+pub fn program_analyzer(program_val: Program) {
+    let mut type_manager = TypeTable::new();
+    let mut variables: HashMap<String, usize> = HashMap::new();
+    for line in program_val {
+        stmt_analyzer(line, &mut type_manager, &mut variables, 0);
     }
 }
-pub fn Stmt_Amalyzer(
-    Statement: Stmt,
-    Type_Manager: &mut TypeTable,
-    Variables: &mut HashMap<String, usize>,
+pub fn stmt_analyzer(
+    statement: Stmt,
+    type_manager: &mut TypeTable,
+    variables: &mut HashMap<String, usize>,
     loop_depth: usize,
 ) {
-    match Statement {
+    match statement {
         Stmt::Assign {
             target,
             op: _,
             value,
         } => {
-            let target_id = *Variables
+            let target_id = *variables
                 .get(&target)
                 .unwrap_or_else(|| panic!("{target} is not defined."));
-            let value_id = Expr_Analyzer(value, Type_Manager, Variables);
-            Type_Manager
+            let value_id = expr_analyzer(value, type_manager, variables);
+            type_manager
                 .unify(target_id, value_id)
                 .expect("Type mismatch in assignment");
         }
@@ -181,19 +182,19 @@ pub fn Stmt_Amalyzer(
             }
         }
         Stmt::Expr(expr) => {
-            Expr_Analyzer(expr, Type_Manager, Variables);
+            expr_analyzer(expr, type_manager, variables);
         }
         Stmt::For { var, iter, body } => {
-            let iter_id = Expr_Analyzer(iter, Type_Manager, Variables);
-            let mut body_vars = Variables.clone();
-            let var_id = Type_Manager.new_type_var();
-            Type_Manager
+            let iter_id = expr_analyzer(iter, type_manager, variables);
+            let mut body_vars = variables.clone();
+            let var_id = type_manager.new_type_var();
+            type_manager
                 .unify(var_id, iter_id)
                 .expect("Type mismatch in for-loop iterator");
             body_vars.insert(var, var_id);
 
             for stmt in body {
-                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth + 1);
+                stmt_analyzer(stmt, type_manager, &mut body_vars, loop_depth + 1);
             }
         }
         Stmt::If {
@@ -201,21 +202,21 @@ pub fn Stmt_Amalyzer(
             body,
             else_branch,
         } => {
-            let cond_id = Expr_Analyzer(cond, Type_Manager, Variables);
-            let bool_id = Type_Manager.new_concrete(Type::Bool);
-            Type_Manager
+            let cond_id = expr_analyzer(cond, type_manager, variables);
+            let bool_id = type_manager.new_concrete(Type::Bool);
+            type_manager
                 .unify(cond_id, bool_id)
                 .expect("Condition of if statement must be of type Bool");
 
-            let mut body_vars = Variables.clone();
+            let mut body_vars = variables.clone();
             for stmt in body {
-                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth);
+                stmt_analyzer(stmt, type_manager, &mut body_vars, loop_depth);
             }
 
             if let Some(else_stmts) = else_branch {
-                let mut else_vars = Variables.clone();
+                let mut else_vars = variables.clone();
                 for stmt in else_stmts {
-                    Stmt_Amalyzer(stmt, Type_Manager, &mut else_vars, loop_depth);
+                    stmt_analyzer(stmt, type_manager, &mut else_vars, loop_depth);
                 }
             }
         }
@@ -224,17 +225,17 @@ pub fn Stmt_Amalyzer(
             initiator,
         } => {
             let (name, type_annot) = variable;
-            if Variables.contains_key(&name) {
+            if variables.contains_key(&name) {
                 panic!("Variable `{name}` is already declared in this scope.");
             }
 
-            let init_type_id = Expr_Analyzer(initiator, Type_Manager, Variables);
+            let init_type_id = expr_analyzer(initiator, type_manager, variables);
 
             let var_type_id = if let Some(type_str) = type_annot {
                 let annot_type = Type::from_str(&type_str)
                     .unwrap_or_else(|| panic!("Unknown type `{type_str}`"));
-                let annot_type_id = Type_Manager.new_concrete(annot_type);
-                Type_Manager
+                let annot_type_id = type_manager.new_concrete(annot_type);
+                type_manager
                     .unify(annot_type_id, init_type_id)
                     .expect("Type mismatch between type annotation and initializer");
                 annot_type_id
@@ -242,43 +243,43 @@ pub fn Stmt_Amalyzer(
                 init_type_id
             };
 
-            Variables.insert(name, var_type_id);
+            variables.insert(name, var_type_id);
         }
         Stmt::Return(expr) => {
-            Expr_Analyzer(expr, Type_Manager, Variables);
+            expr_analyzer(expr, type_manager, variables);
         }
         Stmt::While { cond, body } => {
-            let cond_id = Expr_Analyzer(cond, Type_Manager, Variables);
-            let bool_id = Type_Manager.new_concrete(Type::Bool);
-            Type_Manager
+            let cond_id = expr_analyzer(cond, type_manager, variables);
+            let bool_id = type_manager.new_concrete(Type::Bool);
+            type_manager
                 .unify(cond_id, bool_id)
                 .expect("Condition of while loop must be of type Bool");
 
-            let mut body_vars = Variables.clone();
+            let mut body_vars = variables.clone();
             for stmt in body {
-                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth + 1);
+                stmt_analyzer(stmt, type_manager, &mut body_vars, loop_depth + 1);
             }
         }
     }
 }
 
-pub fn Expr_Analyzer(
-    Expr_val: Expr,
-    Type_Manager: &mut TypeTable,
-    Variables: &HashMap<String, usize>,
+pub fn expr_analyzer(
+    expr_val: Expr,
+    type_manager: &mut TypeTable,
+    variables: &HashMap<String, usize>,
 ) -> usize {
-    match Expr_val {
-        Expr::Char(_) => Type_Manager.new_concrete(Type::Char),
-        Expr::Int(_) => Type_Manager.new_concrete(Type::I64),
-        Expr::Float(_) => Type_Manager.new_concrete(Type::F64),
-        Expr::String(_) => Type_Manager.new_concrete(Type::String),
-        Expr::True | Expr::False => Type_Manager.new_concrete(Type::Bool),
-        Expr::Variable(name) => *Variables
+    match expr_val {
+        Expr::Char(_) => type_manager.new_concrete(Type::Char),
+        Expr::Int(_) => type_manager.new_concrete(Type::I64),
+        Expr::Float(_) => type_manager.new_concrete(Type::F64),
+        Expr::String(_) => type_manager.new_concrete(Type::String),
+        Expr::True | Expr::False => type_manager.new_concrete(Type::Bool),
+        Expr::Variable(name) => *variables
             .get(&name)
             .unwrap_or_else(|| panic!("Variable `{name}` is not defined.")),
         Expr::BinaryOp { left, op, right } => {
-            let left_id = Expr_Analyzer(*left, Type_Manager, Variables);
-            let right_id = Expr_Analyzer(*right, Type_Manager, Variables);
+            let left_id = expr_analyzer(*left, type_manager, variables);
+            let right_id = expr_analyzer(*right, type_manager, variables);
 
             match op {
                 // 比較演算子: 左右の型が同じで、結果は Bool
@@ -288,32 +289,32 @@ pub fn Expr_Analyzer(
                 | BinaryOpKind::Less
                 | BinaryOpKind::GreaterEqual
                 | BinaryOpKind::LessEqual => {
-                    Type_Manager
+                    type_manager
                         .unify(left_id, right_id)
                         .expect("Type mismatch in comparison");
-                    Type_Manager.new_concrete(Type::Bool)
+                    type_manager.new_concrete(Type::Bool)
                 }
                 // 論理演算子: 左右とも Bool で、結果も Bool
                 BinaryOpKind::LogAnd | BinaryOpKind::LogOr => {
-                    let bool_id = Type_Manager.new_concrete(Type::Bool);
-                    Type_Manager
+                    let bool_id = type_manager.new_concrete(Type::Bool);
+                    type_manager
                         .unify(left_id, bool_id)
                         .expect("Left operand of logical op must be Bool");
-                    Type_Manager
+                    type_manager
                         .unify(right_id, bool_id)
                         .expect("Right operand of logical op must be Bool");
                     bool_id
                 }
                 // 範囲演算子 (1..10)
                 BinaryOpKind::Range => {
-                    Type_Manager
+                    type_manager
                         .unify(left_id, right_id)
                         .expect("Range operands must have same type");
                     left_id
                 }
                 // 算術・ビット演算: 左右の型が同じで、結果もその型
                 _ => {
-                    Type_Manager
+                    type_manager
                         .unify(left_id, right_id)
                         .expect("Arithmetic operands must have same type");
                     left_id
@@ -321,11 +322,11 @@ pub fn Expr_Analyzer(
             }
         }
         Expr::UnaryOp { target, op } => {
-            let target_id = Expr_Analyzer(*target, Type_Manager, Variables);
+            let target_id = expr_analyzer(*target, type_manager, variables);
             match op {
                 UnaryOpKind::Not => {
-                    let bool_id = Type_Manager.new_concrete(Type::Bool);
-                    Type_Manager
+                    let bool_id = type_manager.new_concrete(Type::Bool);
+                    type_manager
                         .unify(target_id, bool_id)
                         .expect("Operand of logical NOT must be Bool");
                     bool_id
@@ -335,15 +336,15 @@ pub fn Expr_Analyzer(
         }
         Expr::Call { calee: _, args } => {
             for arg in args {
-                Expr_Analyzer(arg, Type_Manager, Variables);
+                expr_analyzer(arg, type_manager, variables);
             }
-            Type_Manager.new_type_var()
+            type_manager.new_type_var()
         }
         Expr::Function {
             name: _,
             args: _,
             body: _,
-        } => Type_Manager.new_type_var(),
+        } => type_manager.new_type_var(),
     }
 }
 
@@ -365,7 +366,7 @@ mod tests {
                 value: Expr::Int("20".into()),
             },
         ];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 
     #[test]
@@ -382,7 +383,7 @@ mod tests {
                 initiator: Expr::Int("20".into()),
             },
         ];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 
     #[test]
@@ -393,7 +394,7 @@ mod tests {
             variable: ("x".into(), Some("bool".into())),
             initiator: Expr::Int("10".into()),
         }];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 
     #[test]
@@ -413,14 +414,14 @@ mod tests {
                 body: vec![Stmt::Break, Stmt::Continue],
             },
         ];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 
     #[test]
     #[should_panic(expected = "outside of a loop")]
     fn test_break_outside_loop_panic() {
         let program = vec![Stmt::Break];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 
     #[test]
@@ -438,6 +439,6 @@ mod tests {
                 initiator: Expr::Variable("i".into()),
             }],
         }];
-        Program_Analyzer(program);
+        program_analyzer(program);
     }
 }
