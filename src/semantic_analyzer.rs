@@ -4,11 +4,22 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     //符号付き整数
-    I8, I16, I32, I64, I128,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
     //符号なし整数
-    U8, U16, U32, U64, U128,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
     //浮動小数点数
-    F16, F32, F64, F128,
+    F16,
+    F32,
+    F64,
+    F128,
     //文字
     Char,
     ShortChar,
@@ -20,7 +31,8 @@ pub enum Type {
     Void,
     //確定していない場合
     Unknown(usize),
-}impl Type {
+}
+impl Type {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "i8" => Some(Type::I8),
@@ -131,59 +143,301 @@ impl TypeTable {
     }
 }
 
-pub fn Program_Analyzer(Program_val :Program){
-    let mut Type_Manager=TypeTable::new();
-    let mut Variables:HashMap<String,usize>=HashMap::new();
-    for line in Program_val{
-        Stmt_Amalyzer(line,&mut Type_Manager,&mut Variables);
+pub fn Program_Analyzer(Program_val: Program) {
+    let mut Type_Manager = TypeTable::new();
+    let mut Variables: HashMap<String, usize> = HashMap::new();
+    for line in Program_val {
+        Stmt_Amalyzer(line, &mut Type_Manager, &mut Variables, 0);
     }
-}pub fn Stmt_Amalyzer(Statement :Stmt,Type_Manager :&mutTypeTable,Variables: &mut HashMap<String,usize>){
-    match Statement{
-        Stmt::Assign(target,op,value)=>{
-            let target_id=match Variables.get(&target){
-                Some(&id)=>id,
-                None=>expect("{target} is not defined."),
-            };//Type_Manager.unify(target_id, value_id).expect...
+}
+pub fn Stmt_Amalyzer(
+    Statement: Stmt,
+    Type_Manager: &mut TypeTable,
+    Variables: &mut HashMap<String, usize>,
+    loop_depth: usize,
+) {
+    match Statement {
+        Stmt::Assign {
+            target,
+            op: _,
+            value,
+        } => {
+            let target_id = *Variables
+                .get(&target)
+                .unwrap_or_else(|| panic!("{target} is not defined."));
+            let value_id = Expr_Analyzer(value, Type_Manager, Variables);
+            Type_Manager
+                .unify(target_id, value_id)
+                .expect("Type mismatch in assignment");
         }
-        Stmt::Break=>//まだ書いてない(Forの中か判定。スタックつかったらよさそう)
-        Stmt::Continue=>//まだ書いてない(Forの中か判定)
-        Stmt::Expr(Expression)=>//まだ書いてない
-        Stmt::For(Var,Iteration,Program_val)=>//これの意味はあとで聞く
-        Stmt::If(Expression,Program_val,Program_else_val)=>//まだ
-        Stmt::Let(Var,Init)=>{Type_Management.entry(Var).or_insert(Init);}//すでにVarがあった場合はエラーを出します？
-        Stmt::Return(Expression)=>//まだ
-        Stmt::While(Expression,Program_val)=>//まだ
-    }
-}pub fn Expr_Analyzer(Expr_val :Expr)->usize{
-    match Expr_val{
-        Expr::Char=>{
-            return Type.from_str("char");
+        Stmt::Break => {
+            if loop_depth == 0 {
+                panic!("`break` cannot be used outside of a loop");
+            }
         }
-        Expr::Int=>{
-            return Type.from_str("i64");
+        Stmt::Continue => {
+            if loop_depth == 0 {
+                panic!("`continue` cannot be used outside of a loop");
+            }
         }
-        Expr::Float=>{
-            return Type.from_str("f64");
+        Stmt::Expr(expr) => {
+            Expr_Analyzer(expr, Type_Manager, Variables);
         }
-        Expr::Flase=>{
-            return Type.from_str("bool");
+        Stmt::For { var, iter, body } => {
+            let iter_id = Expr_Analyzer(iter, Type_Manager, Variables);
+            let mut body_vars = Variables.clone();
+            let var_id = Type_Manager.new_type_var();
+            Type_Manager
+                .unify(var_id, iter_id)
+                .expect("Type mismatch in for-loop iterator");
+            body_vars.insert(var, var_id);
+
+            for stmt in body {
+                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth + 1);
+            }
         }
-        Expr::True=>{
-            return Type.from_str("bool");
-        }Expr::BinaryOp(left,op,right)=>{
-            //右側と左側どう分けようかな
-        }Expr::Call(calle,args)=>{
-            //何だっけこれ
-        }Expr::Function=>{
-            //めんどくさいから後回しでいいかこれ
-        }Expr::Unary(target,op)=>{
-            return Expr_Analyzer(*target);
-        }Expr::Variable=>{
-            let target_id=match Variables.get(&target){
-                Some(&id)=>id,
-                None=>expect("{target} is not defined."),
+        Stmt::If {
+            cond,
+            body,
+            else_branch,
+        } => {
+            let cond_id = Expr_Analyzer(cond, Type_Manager, Variables);
+            let bool_id = Type_Manager.new_concrete(Type::Bool);
+            Type_Manager
+                .unify(cond_id, bool_id)
+                .expect("Condition of if statement must be of type Bool");
+
+            let mut body_vars = Variables.clone();
+            for stmt in body {
+                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth);
+            }
+
+            if let Some(else_stmts) = else_branch {
+                let mut else_vars = Variables.clone();
+                for stmt in else_stmts {
+                    Stmt_Amalyzer(stmt, Type_Manager, &mut else_vars, loop_depth);
+                }
+            }
+        }
+        Stmt::Let {
+            variable,
+            initiator,
+        } => {
+            let (name, type_annot) = variable;
+            if Variables.contains_key(&name) {
+                panic!("Variable `{name}` is already declared in this scope.");
+            }
+
+            let init_type_id = Expr_Analyzer(initiator, Type_Manager, Variables);
+
+            let var_type_id = if let Some(type_str) = type_annot {
+                let annot_type = Type::from_str(&type_str)
+                    .unwrap_or_else(|| panic!("Unknown type `{type_str}`"));
+                let annot_type_id = Type_Manager.new_concrete(annot_type);
+                Type_Manager
+                    .unify(annot_type_id, init_type_id)
+                    .expect("Type mismatch between type annotation and initializer");
+                annot_type_id
+            } else {
+                init_type_id
             };
-            return target_id;
+
+            Variables.insert(name, var_type_id);
         }
+        Stmt::Return(expr) => {
+            Expr_Analyzer(expr, Type_Manager, Variables);
+        }
+        Stmt::While { cond, body } => {
+            let cond_id = Expr_Analyzer(cond, Type_Manager, Variables);
+            let bool_id = Type_Manager.new_concrete(Type::Bool);
+            Type_Manager
+                .unify(cond_id, bool_id)
+                .expect("Condition of while loop must be of type Bool");
+
+            let mut body_vars = Variables.clone();
+            for stmt in body {
+                Stmt_Amalyzer(stmt, Type_Manager, &mut body_vars, loop_depth + 1);
+            }
+        }
+    }
+}
+
+pub fn Expr_Analyzer(
+    Expr_val: Expr,
+    Type_Manager: &mut TypeTable,
+    Variables: &HashMap<String, usize>,
+) -> usize {
+    match Expr_val {
+        Expr::Char(_) => Type_Manager.new_concrete(Type::Char),
+        Expr::Int(_) => Type_Manager.new_concrete(Type::I64),
+        Expr::Float(_) => Type_Manager.new_concrete(Type::F64),
+        Expr::String(_) => Type_Manager.new_concrete(Type::String),
+        Expr::True | Expr::False => Type_Manager.new_concrete(Type::Bool),
+        Expr::Variable(name) => *Variables
+            .get(&name)
+            .unwrap_or_else(|| panic!("Variable `{name}` is not defined.")),
+        Expr::BinaryOp { left, op, right } => {
+            let left_id = Expr_Analyzer(*left, Type_Manager, Variables);
+            let right_id = Expr_Analyzer(*right, Type_Manager, Variables);
+
+            match op {
+                // 比較演算子: 左右の型が同じで、結果は Bool
+                BinaryOpKind::Equal
+                | BinaryOpKind::NotEqual
+                | BinaryOpKind::Greater
+                | BinaryOpKind::Less
+                | BinaryOpKind::GreaterEqual
+                | BinaryOpKind::LessEqual => {
+                    Type_Manager
+                        .unify(left_id, right_id)
+                        .expect("Type mismatch in comparison");
+                    Type_Manager.new_concrete(Type::Bool)
+                }
+                // 論理演算子: 左右とも Bool で、結果も Bool
+                BinaryOpKind::LogAnd | BinaryOpKind::LogOr => {
+                    let bool_id = Type_Manager.new_concrete(Type::Bool);
+                    Type_Manager
+                        .unify(left_id, bool_id)
+                        .expect("Left operand of logical op must be Bool");
+                    Type_Manager
+                        .unify(right_id, bool_id)
+                        .expect("Right operand of logical op must be Bool");
+                    bool_id
+                }
+                // 範囲演算子 (1..10)
+                BinaryOpKind::Range => {
+                    Type_Manager
+                        .unify(left_id, right_id)
+                        .expect("Range operands must have same type");
+                    left_id
+                }
+                // 算術・ビット演算: 左右の型が同じで、結果もその型
+                _ => {
+                    Type_Manager
+                        .unify(left_id, right_id)
+                        .expect("Arithmetic operands must have same type");
+                    left_id
+                }
+            }
+        }
+        Expr::UnaryOp { target, op } => {
+            let target_id = Expr_Analyzer(*target, Type_Manager, Variables);
+            match op {
+                UnaryOpKind::Not => {
+                    let bool_id = Type_Manager.new_concrete(Type::Bool);
+                    Type_Manager
+                        .unify(target_id, bool_id)
+                        .expect("Operand of logical NOT must be Bool");
+                    bool_id
+                }
+                _ => target_id,
+            }
+        }
+        Expr::Call { calee: _, args } => {
+            for arg in args {
+                Expr_Analyzer(arg, Type_Manager, Variables);
+            }
+            Type_Manager.new_type_var()
+        }
+        Expr::Function {
+            name: _,
+            args: _,
+            body: _,
+        } => Type_Manager.new_type_var(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_let_and_assign_success() {
+        // let x: i64 = 10; x = 20;
+        let program = vec![
+            Stmt::Let {
+                variable: ("x".into(), Some("i64".into())),
+                initiator: Expr::Int("10".into()),
+            },
+            Stmt::Assign {
+                target: "x".into(),
+                op: None,
+                value: Expr::Int("20".into()),
+            },
+        ];
+        Program_Analyzer(program);
+    }
+
+    #[test]
+    #[should_panic(expected = "already declared")]
+    fn test_let_duplicate_panic() {
+        // let x = 10; let x = 20;
+        let program = vec![
+            Stmt::Let {
+                variable: ("x".into(), None),
+                initiator: Expr::Int("10".into()),
+            },
+            Stmt::Let {
+                variable: ("x".into(), None),
+                initiator: Expr::Int("20".into()),
+            },
+        ];
+        Program_Analyzer(program);
+    }
+
+    #[test]
+    #[should_panic(expected = "Type mismatch")]
+    fn test_let_type_mismatch_panic() {
+        // let x: bool = 10;
+        let program = vec![Stmt::Let {
+            variable: ("x".into(), Some("bool".into())),
+            initiator: Expr::Int("10".into()),
+        }];
+        Program_Analyzer(program);
+    }
+
+    #[test]
+    fn test_if_and_while_success() {
+        // if (true) { let x = 10; } while (false) { break; continue; }
+        let program = vec![
+            Stmt::If {
+                cond: Expr::True,
+                body: vec![Stmt::Let {
+                    variable: ("x".into(), None),
+                    initiator: Expr::Int("10".into()),
+                }],
+                else_branch: None,
+            },
+            Stmt::While {
+                cond: Expr::False,
+                body: vec![Stmt::Break, Stmt::Continue],
+            },
+        ];
+        Program_Analyzer(program);
+    }
+
+    #[test]
+    #[should_panic(expected = "outside of a loop")]
+    fn test_break_outside_loop_panic() {
+        let program = vec![Stmt::Break];
+        Program_Analyzer(program);
+    }
+
+    #[test]
+    fn test_for_loop_success() {
+        // for i in 1..10 { let x = i; }
+        let program = vec![Stmt::For {
+            var: "i".into(),
+            iter: Expr::BinaryOp {
+                left: Box::new(Expr::Int("1".into())),
+                op: BinaryOpKind::Range,
+                right: Box::new(Expr::Int("10".into())),
+            },
+            body: vec![Stmt::Let {
+                variable: ("x".into(), None),
+                initiator: Expr::Variable("i".into()),
+            }],
+        }];
+        Program_Analyzer(program);
     }
 }
