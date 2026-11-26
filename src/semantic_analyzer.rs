@@ -370,6 +370,23 @@ mod tests {
     }
 
     #[test]
+    fn test_before_let_and_assign_success() {
+        // let x: i64; x = 20;
+        let program = vec![
+            Stmt::Let {
+                variable: ("x".into(), Some("i64".into())),
+                initiator: None,
+            },
+            Stmt::Assign {
+                target: "x".into(),
+                op: None,
+                value: Expr::Int("20".into()),
+            },
+        ];
+        program_analyzer(program);
+    }
+
+    #[test]
     #[should_panic(expected = "already declared")]
     fn test_let_duplicate_panic() {
         // let x = 10; let x = 20;
