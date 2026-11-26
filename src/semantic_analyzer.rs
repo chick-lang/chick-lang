@@ -358,7 +358,7 @@ mod tests {
         let program = vec![
             Stmt::Let {
                 variable: ("x".into(), Some("i64".into())),
-                initiator: Expr::Int("10".into()),
+                initiator: Some(Expr::Int("10".into())),
             },
             Stmt::Assign {
                 target: "x".into(),
@@ -376,11 +376,11 @@ mod tests {
         let program = vec![
             Stmt::Let {
                 variable: ("x".into(), None),
-                initiator: Expr::Int("10".into()),
+                initiator: Some(Expr::Int("10".into())),
             },
             Stmt::Let {
                 variable: ("x".into(), None),
-                initiator: Expr::Int("20".into()),
+                initiator: Some(Expr::Int("20".into())),
             },
         ];
         program_analyzer(program);
@@ -392,7 +392,7 @@ mod tests {
         // let x: bool = 10;
         let program = vec![Stmt::Let {
             variable: ("x".into(), Some("bool".into())),
-            initiator: Expr::Int("10".into()),
+            initiator: Some(Expr::Int("10".into())),
         }];
         program_analyzer(program);
     }
@@ -405,7 +405,7 @@ mod tests {
                 cond: Expr::True,
                 body: vec![Stmt::Let {
                     variable: ("x".into(), None),
-                    initiator: Expr::Int("10".into()),
+                    initiator: Some(Expr::Int("10".into())),
                 }],
                 else_branch: None,
             },
@@ -436,7 +436,7 @@ mod tests {
             },
             body: vec![Stmt::Let {
                 variable: ("x".into(), None),
-                initiator: Expr::Variable("i".into()),
+                initiator: Some(Expr::Variable("i".into())),
             }],
         }];
         program_analyzer(program);
