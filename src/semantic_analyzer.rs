@@ -225,22 +225,43 @@ pub fn stmt_analyzer(
             initiator,
         } => {
             let (name, type_annot) = variable;
+
             if variables.contains_key(&name) {
                 panic!("Variable `{name}` is already declared in this scope.");
             }
 
-            let init_type_id = expr_analyzer(initiator, type_manager, variables);
+            let var_type_id = match (type_annot, initiator) {
+                // let x;
+                (None, None) => {
+                    panic!("Variable `{name}` needs either a type annotation or an initializer.");
+                }
 
-            let var_type_id = if let Some(type_str) = type_annot {
-                let annot_type = Type::from_str(&type_str)
-                    .unwrap_or_else(|| panic!("Unknown type `{type_str}`"));
-                let annot_type_id = type_manager.new_concrete(annot_type);
-                type_manager
-                    .unify(annot_type_id, init_type_id)
-                    .expect("Type mismatch between type annotation and initializer");
-                annot_type_id
-            } else {
-                init_type_id
+                // let x: i32;
+                (Some(type_str), None) => {
+                    let annot_type = Type::from_str(&type_str)
+                        .unwrap_or_else(|| panic!("Unknown type `{type_str}`"));
+
+                    type_manager.new_concrete(annot_type)
+                }
+
+                // let x = expr;
+                (None, Some(init_expr)) => expr_analyzer(init_expr, type_manager, variables),
+
+                // let x: i32 = expr;
+                (Some(type_str), Some(init_expr)) => {
+                    let init_type_id = expr_analyzer(init_expr, type_manager, variables);
+
+                    let annot_type = Type::from_str(&type_str)
+                        .unwrap_or_else(|| panic!("Unknown type `{type_str}`"));
+
+                    let annot_type_id = type_manager.new_concrete(annot_type);
+
+                    type_manager
+                        .unify(annot_type_id, init_type_id)
+                        .expect("Type mismatch between type annotation and initializer");
+
+                    annot_type_id
+                }
             };
 
             variables.insert(name, var_type_id);
